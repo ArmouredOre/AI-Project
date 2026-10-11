@@ -6,6 +6,7 @@ import pandas as pd
 import librosa
 import mediapipe as mp
 from moviepy.editor import VideoFileClip
+from agents import LinguisticAgent
 
 # Initialize MediaPipe Face Mesh
 mp_face_mesh = mp.solutions.face_mesh
@@ -61,13 +62,15 @@ def extract_visual_features(video_path):
 
     return gaze_std, saccade_velocity_mean, saccade_velocity_std
 
+linguistic_agent = LinguisticAgent()
+
 def extract_audio_features(video_path, temp_audio_path="temp_audio.wav"):
-    """Extracts pause structure, speech pauses per min, and pitch jitter."""
+    """Extracts pause structure, speech pauses per min, pitch jitter, and filler-word ratio."""
     try:
         video = VideoFileClip(video_path)
         if video.audio is None:
             video.close()
-            return 0.0, 0.0, 0.0, 0.0
+            return 0.0, 0.0, 0.0, 0.0, 0.0
         
         video.audio.write_audiofile(temp_audio_path, verbose=False, logger=None)
         video.close()
@@ -76,12 +79,12 @@ def extract_audio_features(video_path, temp_audio_path="temp_audio.wav"):
         duration = librosa.get_duration(y=y, sr=sr)
         
         if duration <= 0:
-            return 0.0, 0.0, 0.0, 0.0
+            return 0.0, 0.0, 0.0, 0.0, 0.0
 
         # Pause / Silence analysis (threshold: 25dB below peak)
         intervals = librosa.effects.split(y, top_db=25)
         if len(intervals) == 0:
-            return 0.0, 0.0, 0.0, 0.0
+            return 0.0, 0.0, 0.0, 0.0, 0.0
         # Measure from first to last word so record-button lead-in/out silence isn't counted as pausing
         duration = (intervals[-1][1] - intervals[0][0]) / sr
         speaking_time = sum([(end - start) / sr for start, end in intervals])
@@ -96,15 +99,18 @@ def extract_audio_features(video_path, temp_audio_path="temp_audio.wav"):
         pitch_mean = float(np.mean(voiced_f0)) if len(voiced_f0) > 0 else 0.0
         pitch_std = float(np.std(voiced_f0)) if len(voiced_f0) > 0 else 0.0
 
+        # Same agent the app uses, so training sees the exact filler_ratio the app computes
+        filler_ratio = linguistic_agent.analyze(temp_audio_path)["filler_ratio"]
+
         if os.path.exists(temp_audio_path):
             os.remove(temp_audio_path)
 
-        return float(pause_ratio), float(pauses_per_min), pitch_mean, pitch_std
+        return float(pause_ratio), float(pauses_per_min), pitch_mean, pitch_std, float(filler_ratio)
     except Exception as e:
         print(f"Audio processing error on {video_path}: {e}")
         if os.path.exists(temp_audio_path):
             os.remove(temp_audio_path)
-        return 0.0, 0.0, 0.0, 0.0
+        return 0.0, 0.0, 0.0, 0.0, 0.0
 
 # S<subject>_Q<question>_<scripted|spontaneous>_t<take>.<ext>
 NAME_RE = re.compile(r"^(S\d+)_Q\d+_(scripted|spontaneous)_t\d+\.(mp4|mov|avi)$", re.IGNORECASE)
@@ -131,7 +137,7 @@ def process_dataset(video_folder="dataset/raw_videos", output_csv="data_features
 
         print(f"Processing: {filename} ...")
         g_std, s_vel_mean, s_vel_std = extract_visual_features(video_path)
-        p_ratio, pauses_per_min, f0_mean, f0_std = extract_audio_features(video_path)
+        p_ratio, pauses_per_min, f0_mean, f0_std, filler = extract_audio_features(video_path)
 
         data.append({
             "filename": filename,
@@ -143,7 +149,8 @@ def process_dataset(video_folder="dataset/raw_videos", output_csv="data_features
             "pause_time_ratio": round(p_ratio, 4),
             "pauses_per_minute": round(pauses_per_min, 2),
             "pitch_mean_hz": round(f0_mean, 2),
-            "pitch_std_hz": round(f0_std, 2)
+            "pitch_std_hz": round(f0_std, 2),
+            "filler_ratio": round(filler, 4)
         })
 
     df = pd.DataFrame(data)

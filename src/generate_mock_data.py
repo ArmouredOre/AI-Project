@@ -20,6 +20,7 @@ def generate_synthetic_features(n_samples=40, output_csv="data_features.csv"):
             pauses_per_min = np.random.normal(6.0, 1.5)
             pitch_mean = np.random.normal(165.0, 15.0)
             pitch_std = np.random.normal(18.0, 4.0)
+            filler_ratio = np.random.normal(0.005, 0.004)
         else:
             # Spontaneous signatures: stable gaze at camera/away to think, frequent pauses, varied pitch
             gaze_std = np.random.normal(0.03, 0.010)
@@ -29,6 +30,7 @@ def generate_synthetic_features(n_samples=40, output_csv="data_features.csv"):
             pauses_per_min = np.random.normal(14.0, 2.5)
             pitch_mean = np.random.normal(170.0, 15.0)
             pitch_std = np.random.normal(36.0, 6.0)
+            filler_ratio = np.random.normal(0.05, 0.015)
 
         data.append({
             "filename": filename,
@@ -39,7 +41,8 @@ def generate_synthetic_features(n_samples=40, output_csv="data_features.csv"):
             "pause_time_ratio": max(0.0, round(float(pause_ratio), 4)),
             "pauses_per_minute": max(0.0, round(float(pauses_per_min), 2)),
             "pitch_mean_hz": round(float(pitch_mean), 2),
-            "pitch_std_hz": max(0.0, round(float(pitch_std), 2))
+            "pitch_std_hz": max(0.0, round(float(pitch_std), 2)),
+            "filler_ratio": max(0.0, round(float(filler_ratio), 4))
         })
 
     df = pd.DataFrame(data)
