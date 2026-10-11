@@ -1,4 +1,5 @@
 import os
+import re
 import cv2
 import numpy as np
 import pandas as pd
@@ -79,6 +80,10 @@ def extract_audio_features(video_path, temp_audio_path="temp_audio.wav"):
 
         # Pause / Silence analysis (threshold: 25dB below peak)
         intervals = librosa.effects.split(y, top_db=25)
+        if len(intervals) == 0:
+            return 0.0, 0.0, 0.0, 0.0
+        # Measure from first to last word so record-button lead-in/out silence isn't counted as pausing
+        duration = (intervals[-1][1] - intervals[0][0]) / sr
         speaking_time = sum([(end - start) / sr for start, end in intervals])
         silence_time = max(0.0, duration - speaking_time)
         pause_ratio = silence_time / duration
@@ -101,6 +106,9 @@ def extract_audio_features(video_path, temp_audio_path="temp_audio.wav"):
             os.remove(temp_audio_path)
         return 0.0, 0.0, 0.0, 0.0
 
+# S<subject>_Q<question>_<scripted|spontaneous>_t<take>.<ext>
+NAME_RE = re.compile(r"^(S\d+)_Q\d+_(scripted|spontaneous)_t\d+\.(mp4|mov|avi)$", re.IGNORECASE)
+
 def process_dataset(video_folder="dataset/raw_videos", output_csv="data_features.csv"):
     if not os.path.exists(video_folder):
         print(f"Folder not found: {video_folder}")
@@ -114,7 +122,12 @@ def process_dataset(video_folder="dataset/raw_videos", output_csv="data_features
     data = []
     for filename in files:
         video_path = os.path.join(video_folder, filename)
-        label = 1 if "scripted" in filename.lower() else 0  # 1 = Scripted, 0 = Spontaneous
+        m = NAME_RE.match(filename)
+        if not m:
+            print(f"Skipping {filename}: name must look like S01_Q03_scripted_t1.mp4")
+            continue
+        subject, condition = m.group(1).upper(), m.group(2).lower()
+        label = 1 if condition == "scripted" else 0  # 1 = Scripted, 0 = Spontaneous
 
         print(f"Processing: {filename} ...")
         g_std, s_vel_mean, s_vel_std = extract_visual_features(video_path)
@@ -122,6 +135,7 @@ def process_dataset(video_folder="dataset/raw_videos", output_csv="data_features
 
         data.append({
             "filename": filename,
+            "subject": subject,
             "label": label,
             "gaze_horizontal_std": round(g_std, 4),
             "saccade_velocity_mean": round(s_vel_mean, 4),

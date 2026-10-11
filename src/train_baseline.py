@@ -2,7 +2,7 @@ import os
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.model_selection import StratifiedKFold, cross_validate
+from sklearn.model_selection import StratifiedKFold, LeaveOneGroupOut, cross_validate
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report, confusion_matrix
 
@@ -17,22 +17,26 @@ def train_and_evaluate(csv_path="data_features.csv"):
     print(f"Class distribution: {df['label'].value_counts().to_dict()} (0=Spontaneous, 1=Scripted)\n")
 
     # 2. Separate features (X) and target label (y)
-    feature_cols = [col for col in df.columns if col not in ['filename', 'label']]
+    feature_cols = [col for col in df.columns if col not in ['filename', 'label', 'subject']]
     X = df[feature_cols]
     y = df['label']
 
     # 3. Define Baseline Model
     model = RandomForestClassifier(n_estimators=100, random_state=42, max_depth=4)
 
-    # 4. Stratified 5-Fold Cross-Validation
-    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    # 4. Cross-Validation: hold out one whole subject per fold so the model can't
+    # score by recognising a person's face/voice. Mock data has no subjects -> 5-fold.
+    if 'subject' in df.columns:
+        cv, groups, cv_name = LeaveOneGroupOut(), df['subject'], "LEAVE-ONE-SUBJECT-OUT"
+    else:
+        cv, groups, cv_name = StratifiedKFold(n_splits=5, shuffle=True, random_state=42), None, "5-FOLD"
     scoring = ['accuracy', 'precision', 'recall', 'f1', 'roc_auc']
     
     # Run cross-validation
-    cv_results = cross_validate(model, X, y, cv=cv, scoring=scoring)
+    cv_results = cross_validate(model, X, y, cv=cv, groups=groups, scoring=scoring)
 
     print("=" * 45)
-    print("        5-FOLD CROSS-VALIDATION RESULTS     ")
+    print(f"  {cv_name} CROSS-VALIDATION RESULTS")
     print("=" * 45)
     for metric in scoring:
         scores = cv_results[f'test_{metric}']

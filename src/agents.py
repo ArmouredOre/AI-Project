@@ -70,6 +70,10 @@ class AudioAgent:
 
         # Pauses detection
         intervals = librosa.effects.split(y, top_db=25)
+        if len(intervals) == 0:
+            return {"audio_verdict": "No speech detected", "pause_ratio": 0.0, "pitch_variance": 0.0}
+        # Measure from first to last word so record-button lead-in/out silence isn't counted as pausing
+        duration = (intervals[-1][1] - intervals[0][0]) / sr
         speaking_time = sum([(end - start) / sr for start, end in intervals])
         pause_ratio = max(0.0, (duration - speaking_time) / duration)
 
@@ -94,13 +98,15 @@ class LinguisticAgent:
         # Whisper Transcription + spaCy parsing share module-level singleton
         # models — serialize access (see _nlp_model_lock definition above).
         with _nlp_model_lock:
-            result = whisper_model.transcribe(audio_path)
+            # Whisper drops "um"/"uh" by default; a disfluent prompt makes it keep them
+            result = whisper_model.transcribe(audio_path, initial_prompt="Umm, so, uh, I was like, hmm, you know, thinking.")
             transcript = result.get("text", "").strip()
             doc = nlp(transcript.lower())
         tokens = [token.text for token in doc if not token.is_punct]
-        filler_words = {"um", "uh", "like", "you know", "actually", "basically", "so"}
-        
+        filler_words = {"um", "umm", "uh", "uhh", "hmm", "like", "actually", "basically", "so"}
+
         filler_count = sum(1 for token in tokens if token in filler_words)
+        filler_count += sum(1 for a, b in zip(tokens, tokens[1:]) if (a, b) == ("you", "know"))
         total_tokens = max(len(tokens), 1)
         filler_ratio = filler_count / total_tokens
 

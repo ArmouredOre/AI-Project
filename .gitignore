@@ -47,3 +47,6 @@ feature_importance.png
 *.pt
 *.pth
 .cache/
+
+# Recorded dataset (faces/voices = biometric data, never commit)
+dataset/
