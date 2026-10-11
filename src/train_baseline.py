@@ -2,13 +2,13 @@ import os
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.model_selection import StratifiedKFold, LeaveOneGroupOut, cross_validate
+from sklearn.model_selection import LeaveOneGroupOut, cross_validate
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report, confusion_matrix
 
 def train_and_evaluate(csv_path="data_features.csv"):
     if not os.path.exists(csv_path):
-        print(f"Error: {csv_path} not found! Run extract_features.py or generate_mock_data.py first.")
+        print(f"Error: {csv_path} not found! Record videos (see DATASET_GUIDELINES.md) and run extract_features.py first.")
         return
 
     # 1. Load feature dataset
@@ -25,18 +25,15 @@ def train_and_evaluate(csv_path="data_features.csv"):
     model = RandomForestClassifier(n_estimators=100, random_state=42, max_depth=4)
 
     # 4. Cross-Validation: hold out one whole subject per fold so the model can't
-    # score by recognising a person's face/voice. Mock data has no subjects -> 5-fold.
-    if 'subject' in df.columns:
-        cv, groups, cv_name = LeaveOneGroupOut(), df['subject'], "LEAVE-ONE-SUBJECT-OUT"
-    else:
-        cv, groups, cv_name = StratifiedKFold(n_splits=5, shuffle=True, random_state=42), None, "5-FOLD"
+    # score by recognising a person's face/voice.
+    cv, groups = LeaveOneGroupOut(), df['subject']
     scoring = ['accuracy', 'precision', 'recall', 'f1', 'roc_auc']
     
     # Run cross-validation
     cv_results = cross_validate(model, X, y, cv=cv, groups=groups, scoring=scoring)
 
     print("=" * 45)
-    print(f"  {cv_name} CROSS-VALIDATION RESULTS")
+    print("  LEAVE-ONE-SUBJECT-OUT CROSS-VALIDATION RESULTS")
     print("=" * 45)
     for metric in scoring:
         scores = cv_results[f'test_{metric}']

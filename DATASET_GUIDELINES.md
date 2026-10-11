@@ -146,8 +146,8 @@ cd src
 ../venv/bin/python train_baseline.py       # leave-one-subject-out cross-validation
 ```
 
-- `extract_features.py` overwrites `data_features.csv` (the mock data). Regenerate mock data any time with `generate_mock_data.py`.
-- Because the CSV has a `subject` column, training automatically uses **leave-one-subject-out** testing: 5 folds, each trained on 4 people and tested on a 5th person it has never seen. That's the honest number, because it tells you whether the model works on a *new* candidate.
+- `extract_features.py` writes `src/data_features.csv`. It's derived from biometric recordings, so it stays local like the videos — don't commit it.
+- Training uses **leave-one-subject-out** testing: 5 folds, each trained on 4 people and tested on a 5th person it has never seen. That's the honest number, because it tells you whether the model works on a *new* candidate.
 
 **Reading the results**
 - With 30 clips, expect a lot of fold-to-fold variation (the `+/-`). Mean ROC-AUC ≥ 0.7 with no fold near 0.5 is a real signal. AUC ≈ 0.5 is a coin flip.

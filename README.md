@@ -190,16 +190,14 @@ engineered features:
 
 - [`src/extract_features.py`](src/extract_features.py) — batch-extracts the same
   vision/audio-derived numeric features (gaze std, saccade velocity, pause ratio, pauses/min,
-  pitch mean/std) from a folder of labeled videos into a tabular dataset
-  (`data_features.csv`), where the label is inferred from filename convention
-  (`scripted_*` → 1, `spontaneous_*` → 0).
-- [`src/generate_mock_data.py`](src/generate_mock_data.py) — generates **synthetic** feature
-  rows drawn from two different Gaussian distributions per class (used when real labeled video
-  data isn't available, e.g. for demoing the training pipeline).
+  pitch mean/std, filler ratio) from a folder of labeled videos into a tabular dataset
+  (`data_features.csv`). Filenames must follow `S01_Q3_scripted_t1.mp4` — subject, question,
+  condition (`scripted` → 1, `spontaneous` → 0), take. See
+  [`DATASET_GUIDELINES.md`](DATASET_GUIDELINES.md) for how to record the dataset.
 - [`src/train_baseline.py`](src/train_baseline.py) — trains a **Random Forest classifier**
   (`sklearn.ensemble.RandomForestClassifier`, an ensemble of decision trees using **bagging** —
   bootstrap aggregation — and random feature subsampling to reduce variance/overfitting) on the
-  tabular features, evaluated with **Stratified 5-Fold Cross-Validation**
+  tabular features, evaluated with **Leave-One-Subject-Out Cross-Validation**
   (`accuracy`, `precision`, `recall`, `F1`, `ROC-AUC`) to get an unbiased estimate of
   generalization performance on the small dataset. It also plots **Gini feature importances**,
   which is itself a model-based interpretability technique — showing which behavioral cues the
@@ -226,9 +224,8 @@ knowledge-based and statistical-learning approaches to AI.
 | Weighted ensemble / late fusion voting | `MultiAgentFusionOrchestrator` |
 | Explainable AI (XAI) — human-readable rationale | `orchestrator_synthesis` |
 | Supervised learning — ensemble trees (bagging) | `train_baseline.py`, RandomForest |
-| Model evaluation — stratified k-fold cross-validation | `train_baseline.py` |
+| Model evaluation — leave-one-subject-out cross-validation | `train_baseline.py` |
 | Model interpretability — Gini feature importance | `train_baseline.py` |
-| Synthetic data generation for ML demos | `generate_mock_data.py` |
 
 ---
 
@@ -242,10 +239,8 @@ AI-Project/
 │   ├── agents.py              # VisionAgent, AudioAgent, LinguisticAgent (live inference)
 │   ├── orchestrator.py        # MultiAgentFusionOrchestrator — fuses agent verdicts
 │   ├── extract_features.py    # Batch feature extraction from a folder of labeled videos
-│   ├── generate_mock_data.py  # Synthetic dataset generator for the training pipeline
 │   ├── train_baseline.py      # Random Forest training + cross-validation + feature importance
-│   ├── text_orcehstrator.py   # Quick smoke-test script for orchestrator wiring
-│   └── data_features.csv      # Example extracted/synthetic feature dataset
+│   └── text_orcehstrator.py   # Quick smoke-test script for orchestrator wiring
 └── generated-images/          # Output images (git-ignored)
 ```
 
@@ -362,18 +357,13 @@ per-agent metrics, and transcript.
 ### 8.4 (Optional) Run the offline training pipeline
 
 ```bash
-# 1. Either extract features from your own labeled videos in dataset/raw_videos/
-#    (filenames must contain "scripted" or "spontaneous"):
-python src/extract_features.py
-
-# 2. ...or generate a synthetic dataset instead:
-python src/generate_mock_data.py
-
-# 3. Train and evaluate the Random Forest baseline:
-python src/train_baseline.py
+# Record videos per DATASET_GUIDELINES.md into src/dataset/raw_videos/, then from src/:
+cd src
+python extract_features.py   # → data_features.csv
+python train_baseline.py     # → leave-one-subject-out CV
 ```
 
-This prints 5-fold cross-validated accuracy/precision/recall/F1/ROC-AUC, prints feature
+This prints leave-one-subject-out cross-validated accuracy/precision/recall/F1/ROC-AUC, prints feature
 importances, and saves a `feature_importance.png` bar chart.
 
 ### 8.5 (Optional) Sanity-check the agent/orchestrator wiring without the UI
